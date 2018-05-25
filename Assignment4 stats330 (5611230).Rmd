@@ -1,0 +1,173 @@
+---
+title: "Assignment4"
+author: "Cameron Todd (5611230)"
+date: "7 April 2017"
+output:
+  word_document: default
+  html_document: default
+---
+
+
+
+Question 1
+
+
+```{r}
+library("dplyr",warn.conflicts=FALSE, quietly=TRUE)
+wine.df <- read.csv("winequality.csv", header = TRUE, sep = ";")
+
+#Fit Logit model: Comment on summary
+wine_fit1 = glm(good.quality ~ ., data = wine.df, family = binomial)
+summary(wine_fit1)
+
+```
+Comment:
+We can clearly see that most of the variables are significant to predicting whether the wine will be of good quality, however variables citric acid, free sulfur dioxide and pH level appear to not be significant in this model.
+You can see about half and half of the variables have a positive or negative effect on the quality of good wine such as alcohol, sulphates, residual sugar and the fixed acidity variables all have a positive effect on the quality of the wine, it appears alcohol level has the greatest positive effect on quality of wine. The density, total sulphar dioxide, chlorides and volatile acidity have negative affects on the quality of wine.
+Analysis of residuals - We have a null deviance of 1270 and 1598 degrees of freedom and by adding all the terms into a logit model we can reduce the residual deviance to 870 with 1587 degrees of freedom. The AIC is at 895 but cannot determine if this is good until we start taking away variable or adding higher polynomial terms or interactions. However because this is ungrouped data we can't actually refer to the residual deviance and degrees of freedom too much and will only be looking at AIC and other predictive power metrics (later).
+
+
+Q2 (A)
+```{r fig.height=5, fig.width=5, warning = FALSE}
+library("mgcv")
+full_model = glm(good.quality ~ ., data = wine.df, family = binomial)
+null_model = glm(good.quality ~ 1, data = wine.df, family = binomial)
+
+#Stepwise Regression
+step(null_model, scope = formula(full_model), direction = "both", trace = FALSE)
+
+basic_model = glm(formula = good.quality ~ alcohol + volatile.acidity + sulphates + 
+    total.sulfur.dioxide + chlorides + fixed.acidity + residual.sugar + 
+    density, family = binomial, data = wine.df)
+summary(basic_model)
+
+#Fitting smoothers
+wine.gam = gam(good.quality ~ s(alcohol) + s(volatile.acidity) + s(sulphates) + s(total.sulfur.dioxide) + s(chlorides) + s(fixed.acidity) + s(residual.sugar) + s(density), data = wine.df, family = binomial)
+plot(wine.gam, ylim = c(-10,10))
+#Fit model with polynomials
+poly_model = glm(formula = good.quality ~ alcohol + volatile.acidity + sulphates + 
+    total.sulfur.dioxide + chlorides + fixed.acidity + poly(residual.sugar,2.6) + 
+    density, family = binomial, data = wine.df)
+summary(poly_model)
+
+
+#New model with interaction 2way
+interaction2model = glm(formula = good.quality ~ (alcohol+volatile.acidity+sulphates+total.sulfur.dioxide+chlorides+fixed.acidity+residual.sugar+density)^2, family = binomial, data = wine.df)
+
+step(null_model, scope = formula(interaction2model), direction = "both", trace= FALSE)
+
+interaction2stepw = glm(good.quality ~ alcohol + volatile.acidity + sulphates + total.sulfur.dioxide + 
+    chlorides + fixed.acidity + residual.sugar + density + total.sulfur.dioxide:chlorides + 
+    alcohol:sulphates + total.sulfur.dioxide:fixed.acidity + 
+    alcohol:fixed.acidity + alcohol:density + fixed.acidity:density, family = binomial, data = wine.df)
+summary(interaction2stepw)
+
+#New model with 3 way interaction - However this model results in the same AIC as a 2way interaction and therefore i won't choose this model
+interaction3model = glm(formula = good.quality ~ (alcohol+volatile.acidity+sulphates+total.sulfur.dioxide+chlorides+fixed.acidity+residual.sugar+density)^3, family = binomial, data = wine.df)
+
+step(null_model, scope = formula(interaction3model), direction = "both", trace = FALSE)
+interaction3stepw = glm(formula = good.quality ~ alcohol + volatile.acidity + sulphates + 
+    total.sulfur.dioxide + chlorides + fixed.acidity + residual.sugar + 
+    density + total.sulfur.dioxide:chlorides + alcohol:sulphates + 
+    total.sulfur.dioxide:fixed.acidity + alcohol:fixed.acidity + 
+    alcohol:density + fixed.acidity:density, family = binomial, 
+    data = wine.df)
+summary(interaction3stepw)
+
+
+
+
+
+
+
+```
+
+```{r fig.height=5, fig.width=5, warning = FALSE}
+library("R330")
+#Analyse the predictive power of the model with 3 tests below
+#Cross Validation and Bootstrap results
+cross.val(interaction2stepw)
+err.boot(interaction2stepw)
+
+cross.val(poly_model)
+err.boot(poly_model)
+#ROC curve
+ROC.curve(good.quality ~ alcohol + volatile.acidity + sulphates + total.sulfur.dioxide + 
+    chlorides + fixed.acidity + residual.sugar + density + total.sulfur.dioxide:chlorides + 
+    alcohol:sulphates + total.sulfur.dioxide:fixed.acidity + 
+    alcohol:fixed.acidity + alcohol:density + fixed.acidity:density, family = binomial, data = wine.df)
+R330::HLstat(interaction2stepw)
+
+ROC.curve(good.quality ~ alcohol + volatile.acidity + sulphates + 
+    total.sulfur.dioxide + chlorides + fixed.acidity + poly(residual.sugar,2.6) + 
+    density, family = binomial, data = wine.df)
+R330::HLstat(poly_model)
+
+#Diagnostics
+plot(interaction2stepw, which = 1:6)
+```
+Q2 (A)
+In total i fitted 4 different model. the first was the standard basic linear model with all variables and then took out variables that were not significant (basic_model). I then tested for any polynomials that could be added onto the basic model by fitting smoothers over each variable, a few variable suggested high polynomial terms (4 and above), this would of over smoothed my model and would not be good for new data so i only added a polynomial term of 2 to the variable residual.sugar. After comapring these two models i could see the polynomial helped with a slightly lower AIC from 890 to 888. I then created 2 new models with interaction terms upto 2 and the 2nd model was upto 3, i then used the stepwise function of bothways to choose the optimum amount of terms in both models by naturally minimising AIC. The 2way and 3way interaction models pretty much came out the same and the AIC was inseperable so i choose the 2way interaction model.
+
+I then completed a analysis over the predictive power over the 2 models i am looking at closest the polynomial model and the 2-way interaction model. As you can see above, both have a p-value greater then 0.05 in the Hosmer-Lemeshow statistic, both models also have a high CV and bootstrap results and ROC curve. However the 2way interaction model slightly fits better and has a lower AIC, therefore i will go with this model. I will go into more detai on predictive power in 2B.
+
+I then completed the relevant diagnostics (above) I was a bit concerned with observation 653 but I had no real evidence that the observation was wrong and that by deleting it we would increase the regression coefficients or make fitted probabilities more extreme and we would end up overstating the predictive ability.
+
+All in all i think the 2-way interaction model is the best one here out of the other 5.
+
+```{r}
+pred = predict(interaction2stepw, type = "response")
+predcode = ifelse(pred < 0.5, 0, 1)
+table(with(wine.df,good.quality),predcode)
+specificity = 1337/(1337 + 45)
+Sensitivity = 81/(136 + 81)
+print(specificity)
+print(Sensitivity)
+```
+
+
+Q2(B)
+When determining how well the model is able to predict (goodness of fit) whether the wine is of good quality or not, i will analyse the ROC curve, the confusion matrix, cross validation/bootstrap results and the Hosmer-Lemeshow statistic.
+Hosmer-Lemeshow statistic result as printed above of 0.467 is above the 0.05 which normally indicated problems in the fittted logistic model.
+Cross validation/bootstrap results show that our Bootstrap mean correctly classified = 1 - 0.113 = 0.887, 88.7% of observations, this is the average error result accross the 10 tests, you can also see the specificity and sensitivity results which are similar to the ROC explained below.
+The ROC curve amd confusion matrix above returns similar results showing what's the split of type's of observations we are more likely to predict well or not i.e. Sensitivity and Specificity with at this stage a defaul c value of 0.5 meaning if the observation has a probability of greater then 0.5 then we would predict it to be a good bottle of wine. The ROC curve and confusion matrix shows a sensitivity value of 0.37 and specificty of 1 - 0.033 = .967. The specificty result is great this means our model predicts with an accuracy of 96.7% that a wine bottle is of bad quality when the case is truly a bad wine, however our sensitivity is only .37 meaning with a probability of .37 of predicting a good wine when the actual case is a good wine, these are with the c-value of 0.5 (default). The area under the curve of 0.8799 is also means we can predict out of all observations with an accuracy of 88%, this agrees with CV/bootstrap.
+Overall the model seems pretty good but can obviously change the weighting of c if we care about predicting good bottles of wine more accurately.
+
+
+
+Q3 (A)
+```{r}
+
+pred = predict(interaction2stepw, type = "response")
+pred.success = pred[wine.df$good.quality == 1]
+quantile(pred.success,0.1)
+
+```
+Q3 (B) substitute the 0.069 into the matrix instead of 0.5. Makes the model probabilities closer to 1 meaning we have a higher chance of predicting good bottles of wine.
+
+
+```{r}
+pred = predict(interaction2stepw, type = "response")
+predcode = ifelse(pred < 0.069788, 0, 1)
+table(with(wine.df,good.quality),predcode)
+
+specificity = 963/(963 + 419)
+Sensitivity = 195/(195 + 22)
+Error_rate = (417 + 22)/(965+417+22+195)
+print(specificity)
+print(Sensitivity)
+print(Error_rate)
+```
+After finding the optimum c-value to predict within 90% accuracy of a good bottle of wine, the c-value being 0.0697. The new Sensitivity value is 0.898 or rounding up to 90% as requested but because of the trade-off effect the specificty has dropped from the 96% to 69%. This means that our model will now predict with a probability of 90% of predicting a good wine when the case is truely a good wine and with a probability of 69% predict a bad wine when the true case is a bad wine. The overall in-sample error is 0.274 or 27.4%.
+Obviously comparing these figures to the default of 0.5 means that now any observations with a predicted probability of greater then 0.069 is now considered potentially a good wine instead of any probability over 0.5 we will say is potentially a good wine so of course logically our specificty was going to increase by .32 and obviously the trade-off effect reduces the sensitivity by .07 to 89.8%. Because the change in c was around trying to save any good wine being given away, the probability of giving away a good wine has significantly reduced to 10% instead of the 1-.37 = 63% chance liklihood with the default of c so year i agree this change in c is a good change.
+
+
+Q3 (C)
+```{r}
+winetest.df <- read.csv("winequality-test.csv", header = TRUE, sep = ";")
+predict(interaction2stepw, newdata = winetest.df, type = "response")
+
+```
+Obviously with our newly constructed c value of 0.06978 we will happily give away any bottles with a probability of less then this figure and keep any bottles above this figure, therefore;
+bottles we will give away are observations 1,2,4,6, and 8
+Bottles we will keep are observations 3,5,7,9,10
