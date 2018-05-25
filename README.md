@@ -9,4 +9,4 @@
 
 4. Assignment3_stats330 = [a relative link](final_.docx) Advanced statistical models Stats330. Use of stepwise regression to algorithmically find a suitable model and also ROC curves and smoothers to model the probability of good wine or not (categorical prediction)
 
-5. Tutorial 1 [a relative link](tutorial finished.docx) Use of different plots to plot 3 dimensional categorical data or 3 dimensional contiunuous variables (3D box plot), also violin plots
+5. Tutorial 1 [a relative link](tutorial1.docx) Use of different plots to plot 3 dimensional categorical data or 3 dimensional contiunuous variables (3D box plot), also violin plots
