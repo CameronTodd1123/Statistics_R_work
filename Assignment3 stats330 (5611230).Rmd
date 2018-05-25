@@ -1,0 +1,146 @@
+---
+title: "Assignment3"
+author: "Cameron Todd (5611230)"
+date: "7 April 2017"
+output:
+  word_document: default
+  html_document: default
+---
+
+
+
+Question 1
+
+(A)
+
+```{r}
+library("dplyr",warn.conflicts=FALSE, quietly=TRUE)
+rats.df <- read.csv("rats_radiation.csv", header = TRUE)
+
+ratsg.df = group_by(rats.df,treatment,dose)
+grouped_rats.df = summarise(ratsg.df, dead =  sum(death), alive = length(death) - sum(death))
+grouped_rats.df$treatment <- factor(grouped_rats.df$treatment)
+print(grouped_rats.df)
+```
+(B)
+Grouped data is data that has been organised into groups known as classes, the grouped data has been classified and thus come level of data analysis has taken place already. We group data when their are certain observations that all have similar or related properties, in this case the level of doseage and treatment. In most cases, data operations are most useful when done on groups defined by variables in the dataset, this is because the data is generally cleaner and less of it e.g. the sort algorithm can take very long on a huge dataset but when it is grouped it saves alot more time. The downside of course is we get less plots in the scattter plots and therefore harder to see trends or diagnostic outliers.
+
+
+
+
+Question 2
+(A)
+
+```{r fig.height = 8, fig.width=8}
+
+plot(I(dead/(dead+alive)) ~ dose, pch = substr(treatment,1,1), col=ifelse(treatment == "0","red","blue"), cex=1.5, data = grouped_rats.df, xlab = "dose type", ylab = "Probability of death", main = "Probability of death vs Dose type and treatment")
+legend("topright", c("Treatment", "Placebo"), col=c("blue", "red"), lwd=10)
+#text(grouped_rats.df$dose,grouped_rats.df$dead, 1:8, col = ifelse(grouped_rats.df$treatment == 1, "orange","blue"))
+
+```
+(B)
+As you can see from the plot, we have two continuous variables that probability of death, the dose type (should be a factor, will change later) and treatment as a categorical variable of 0 or 1, 1 being the mouse got treated. We can firstly obviously see that the mice that got treated had a less likely chance of death compared to mice that weren't treated as expected. We can also see as the dose type of radiation increases, the probability of death increases, their also appears to be curvatures in both placebo and treated groups, this might mean we will need a quadratic in our model.
+
+
+Question 3
+
+```{r}
+rats.df$treatment <- factor(rats.df$treatment)
+rats.fit_Interaction = glm(cbind(dead,alive) ~ dose * treatment, family = binomial, data = grouped_rats.df)
+rats.fitNI = glm(cbind(dead,alive) ~ dose + treatment, family = binomial, data = grouped_rats.df)
+summary(rats.fit_Interaction)
+```
+
+
+```{r}
+summary(rats.fitNI)
+
+```
+
+Q3 (B)
+Analysis of coefficients show an increase in dosage has a positive effect on the probability of death for both models. The interaction term in the first model appears to be insignificant and therefore should be taken out as in the 2nd model the the treatment appears to be a significant factor to explaining the variances in the probability of death, the treatment has a negative effect on probability of deat.
+Analysis of residuals - In both models the we have a residual deviance for the null hypothesis of 140 and 7 degrees of freedom. When we include the independent variables of dose and treatment, the interaction model decreases it's deviance by 126 and 3 degrees of freedom to 14 residual deviance with 4 degrees of freedom,  the 2nd model with no interaction, its residual deviances reduce by 124 to 17 and drops degrees of freedom by 2 to 5.
+The interaction model also appears to have a lower AIC, which is ok to measure when comparing against 2 models, obviously the lower the better.
+
+It appears the interaction model has the best fit for the data as it has a lower residual deviance, degrees of freedom, however this is normal as we add more terms to the model, the R^2 or in this case the Residual deviances will always decrease but i think the proportional decrease in residual deviances by adding the extra interaction term is not huge and therefore i would prefer to use the more basice model, model 2 with no interaction is actually the better fit.
+
+However both models are still not a great model as their is quite a big difference between the residual deviance and degrees of freedom.
+
+q3 (c)
+```{r}
+pearson.residuals = residuals(rats.fitNI, type = "pearson")
+deviance.residuals = residuals(rats.fitNI, type = "deviance")
+
+plot(pearson.residuals, ylab = "residuals", main = "Pearson", cex = 1.5, cex.main = 1.5, cex.lab = 1.5, cex.axis = 1.5, ylim = c(-3,3), pch = 16, las = 1)
+abline(h = 0, lty = 2, col = "red")
+plot(deviance.residuals, ylab = "residuals", main = "Deviance", cex = 1.5, cex.main = 1.5, cex.lab = 1.5, cex.axis = 1.5, ylim = c(-3,3), pch = 16, las = 1)
+abline(h = 0, lty = 2, col = "blue")
+
+```
+
+Both residual plots are fairly similar. Becuase these are grouped observations, any points such as groups 1 and 4 hat are outside the -2 and 2 bracket will mean within those 2 groups their will be many observations outside this bracket. With these 2 groups outside the bracket, it is very strange and the model should be refitted. It appears their may be curvature for both treated and non treated groups, this can help to refit the model.
+
+
+Question 4 (A)
+
+```{r}
+#grouped_rats.df$dose = as.factor(grouped_rats.df$dose, levels = c(0,4))
+rats.fitSQ = glm(cbind(dead,alive) ~ dose + I(dose^2) + treatment, family = binomial, data = grouped_rats.df)
+
+####Residuals
+pearson.residuals = residuals(rats.fitSQ, type = "pearson")
+deviance.residuals = residuals(rats.fitSQ, type = "deviance")
+
+plot(pearson.residuals, ylab = "residuals", main = "Pearson", cex = 1.5, cex.main = 1.5, cex.lab = 1.5, cex.axis = 1.5, ylim = c(-3,3), pch = 16, las = 1)
+abline(h = 0, lty = 2, col = "red")
+plot(deviance.residuals, ylab = "residuals", main = "Deviance", cex = 1.5, cex.main = 1.5, cex.lab = 1.5, cex.axis = 1.5, ylim = c(-3,3), pch = 16, las = 1)
+abline(h = 0, lty = 2, col = "blue")
+
+#Hat matrix diagonals
+ HMD = hatvalues(rats.fitSQ)
+ plot(HMD, ylab = "HMD's", type = "h", cex = 1.5, cex.axis = 1.5, cex.lab = 1.5, main = "index plots of HMD's",ylim = c(0,2))
+ abline(h = 3*length(coef(rats.fitSQ))/nrow(grouped_rats.df), lty =2)
+
+ #Cooks
+hat.extreme <- 3*length(coef(rats.fitSQ))/nrow(grouped_rats.df)
+plot(rats.fitSQ, which = 4)
+abline(h = qchisq(0.1, 3)/3)
+
+#Deviance change diagnostic
+dev.change = deviance.residuals^2 + pearson.residuals^2 * HMD / (1-HMD)
+plot(dev.change, ylab = "Deviance change", type = "h", cex = 1.5, cex.axis = 1.5, cex.lab = 1.5, main = "Index plot of deviance changes",ylim = c(0,4))
+abline(h = 4, lty = 2, col = "blue")
+#summary(rats.fitSQ)
+
+```
+
+By adding the quadratic term to the model, it has fixed the residual deviance problems, with the plots being alot closer to 0 for Pearson and Deviance plots. I have applied the diagnostics for any influential points by using the Hat matrix diagonals, cooks distance and leave-one-out deviance change. The diagnostics seem fine with the hat matrix showing they are all below the 1.5, however the cooks show groups 6,7 and 8 can be all influential but this can remove alot of data and plus the deviance change plot shows that the groups are all below the limit of 4 and therefore we are not too worried, diagnostics ok and we can move forward.
+
+Q4 (B)
+```{r fig.height = 8, fig.width=8}
+grouped_rats.df$treatment <- factor(grouped_rats.df$treatment)
+rats.fitSQ = glm(cbind(dead,alive) ~ dose + I(dose^2) + treatment, family = binomial, data = grouped_rats.df)
+plot(I(dead/(dead+alive)) ~ dose, pch = substr(treatment,1,1), col=ifelse(treatment == "0","red","blue"), cex=1.5, data = grouped_rats.df, xlab = "dose type", ylab = "Probability of death", main = "Probability of death vs Dose type and treatment",ylim = c(0,1.2))
+legend("topright", c("Treatment", "Placebo", "prediction placebo","prediction treatment"), col=c("blue", "red","orange","green"), lwd=10)
+
+xx = seq(200,260,length.out = 100)
+fit = rats.fitSQ
+pred.prob = predict(rats.fitSQ, newdata = data.frame(dose = c(201, 220, 243, 260) , treatment = "1"), type = "response")
+lines(x = c(201, 220, 243, 260) , y = pred.prob, col = "green")
+
+pred.prob1 = predict(rats.fitSQ, newdata = data.frame(dose = c(201, 220, 243, 260) , treatment = "0"), type = "response")
+lines(x = c(201, 220, 243, 260) , y = pred.prob1, col = "orange")
+```
+
+Q4 (C)
+```{r}
+1 - pchisq(deviance(rats.fitSQ),df.residual(rats.fitSQ))
+anova(rats.fitSQ, test = "Chisq")
+summary(rats.fitSQ)
+exp(confint.default(rats.fitSQ))
+
+```
+
+After adding a quadratic for does on the model, we can see straight away the fit is alot better then previous models, with the residual deviance of 2.8 and 4 degrees of freedom as almost the same.
+When looking at the coefficients, you can see that does of radiation has a positive effect on the probability of death but you can also see the quadratic has a negative number meaning that as dose of radiation increases, their is diminishing effect on the probability of death (this is the curvature that you can see in the plots for both treated and non-treated groups). The treatment coefficient is also having a negative effects on the probability of death as expected. All these coefficients are significant to explaining the variability in the model.
+You can also see with a 95% confidence interval that for every 1 unit increase in dose, we can expect a 1.4 - 2.8 times increase in the probability of death. We can also say that if a mouse has no treatment they were between 1.17 - 2.69 times more likely to die then a mouse that was treated.
