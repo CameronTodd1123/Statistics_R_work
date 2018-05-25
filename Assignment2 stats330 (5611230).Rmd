@@ -1,0 +1,203 @@
+---
+title: "Assignment2"
+author: "Cameron Todd (5611230)"
+date: "7 April 2017"
+output:
+  word_document: default
+  html_document: default
+---
+
+
+
+Question 1
+
+(A)
+
+```{r}
+library("VGAMdata")
+data(xs.nz)
+educat.df = xs.nz[,c(3,4,9,10,30,50)]
+educat.df <- transform(educat.df, bmi = round(weight/height^2))
+final.df = na.omit(educat.df)
+
+summary(final.df)
+```
+Comment - In the dataset we obviously have 7 variables, 5 of which are continuous variables and 2 variables (ethnicity and sex) are categorical variables. 
+The data appears to be consistent as we have dealth with the missing values and after viewing and summary, the data appears to have no special values or unusual observations or obvious errors and therefore the data is clean to fit a model.Also their appears to be no skewage in the data with the continuous variables means and medians being almost the same.
+
+(B)
+```{R fig.height=4, fig.width=4}
+BMI.lm = lm(log(bmi) ~ age + I(age^2) + drinkmaxday + ethnicity + sex, data = final.df )
+
+hat.extreme <- 3*length(coef(BMI.lm))/nrow(final.df)
+plot(BMI.lm, which = 1:6)
+
+```
+We can clearly see in the residuals vs leverage plot that we have observation `989` `3053` and `1246` as fairly low-leverage large outliers, all three are the only real influential points and therefore will be removed from the model. 
+
+(C)
+```{R fig.height=4, fig.width=4}
+library(s20x)
+final.df1 = educat.df[-c(989,3053,1246),]
+final.df1 = na.omit(final.df1)
+BMI.lm2 <- lm(log(bmi) ~ I(age^2) + age +
+                drinkmaxday + ethnicity + sex, data = final.df1)
+plot(BMI.lm2, which = 1:6)
+```
+```{r fig.height=10, fig.width=10}
+pairs20x(bmi ~ ., data = final.df1)
+```
+After taking out the 3 outliers and refitting the model, it is safe to say their are no more outliers that are needed to be removed. The cooks plot shows observations 947, 6483 and 9403 and potential outliers but are all below 0.4. These observations also show up in the residuals vs leverage plot but as fairly low leverage observations and therefore won't be influential in the model.
+I also plotted a pairs plot to check for any multicollinearity. After reviewing the plot it appears their are no issues and with the highest correlation between the explanatory variables of 0.65 between sex and height, this is expected, no further actions required.
+
+
+```{r}
+summary(BMI.lm2)
+print( 100 * (exp(0.001755) - 1))
+print(100 * (exp(0.109) - 1))
+print(100 * (exp(0.1374) - 1))
+print(100 * (exp(-0.06153) - 1))
+print(100 * (exp(0.04908) - 1))
+```
+I had to exponentiate and times by 100 to make the summary coeffficients appropriate to interpret I am also not going to interpret age and quadratic of age as requested in question.
+The summary of the model shows that the drinkmaxday variable, ethnicity and sex are all significant variables to the median BMI. 
+drinkmaxday shows that every extra one unit drink increase it can have roughly a .18 % increase on the median BMI..
+Ethnicity - The model shows that if the person is Maori, they generally are 11.5% larger then the median BMI population. A Polynesian person will generally be 14.7% larger then the median BMI population and other ethnicities will generally be have a BMI of 6% less then the median population. 
+Sex - It appears that SexM is linearly posititve to BMI, if you are male you generally have a BMI that is 5% larger then the median population
+.
+
+
+(e)
+I am reading this question that is asking for what age is giving rise to the larest BMI values and therefore we need to find the maximum value by getting the first derivative of the model above with respect to age and then set the gradient to 0 and solve for age. I did this with the values above and deriving the model by age which = $$-18.74e-05 * age + 1.129e-02 = 0 $$. I then solved for age which gave me roughly 57 years old tends to give the highest BMI's
+
+
+(f)
+```{r fig.height=6, fig.width=6}
+xmat = model.matrix(BMI.lm2)[,-1]
+round(diag(solve(cor(xmat))),2)
+
+```
+Appears to be no evidence of multicollinearity for this data 
+
+
+(G)
+
+```{r fig.height = 6, fig.width=6}
+library('mgcv')
+bmi.gam1 <- gam(log(bmi) ~ s(age)+s(drinkmaxday)+ethnicity+sex,
+                 data = final.df1)
+par(mfrow = c(2, 3))
+plot(bmi.gam1)
+par(mfrow = c(1, 1))
+
+
+
+
+plot(gam(log(bmi)~ s(age) + s(drinkmaxday), data = final.df1), lwd = 1, col = "black", pch=12, main = "Gam plot of BMI")
+
+```
+
+After observing the additive model above, It looks like a transformation of `Age` and `drinkmaxday` could be useful.
+We would try a cubic polynomial for `Age`, however the gam model also suggests a polynomial function to the power of 7 for the variable drinkmaxday, this polynomial would make the model very complex and hard to logically make sense of, io think it would be best to log the drinkmaxday variable to help bring down the recommended polynomical factor.
+
+
+(h)
+```{r fig.height = 6, fig.width=6}
+final.df1 <- transform(final.df1, logdmd = log1p(drinkmaxday))
+bmi.gam2 <- gam(log(bmi) ~ s(age)+s(logdmd)+ethnicity+sex,
+                 data = final.df1)
+par(mfrow = c(2, 3))
+plot(bmi.gam2)
+par(mfrow = c(1, 1))
+
+plot(gam(log(bmi)~ s(age) + s(logdmd), data = final.df1), lwd = 1, col = "black", pch=12, main = "Gam plot of BMI with logdmd")
+```
+After adding a new varialbe `logdmd` which is computed to log(1+drinkmaxday), we do this because we know some of the observations would have max drink per day values of 0, these obeservations if when logged would errors log(0) = - infinity and therefore log1p just creates the log(0) observations to be 0.
+The plots above have shown a better result then before as it suggests we can transform `log(drinkmaxday)`into only a quadratic which is much simpler to interpret then before with 7 powers. `Age` has relatively stayed the same with the component function suggesting also a quadratic as before
+
+
+
+(i)
+```{r}
+bmi.lm3= lm(log(bmi) ~ age + I(age^2) + logdmd + I(logdmd^2) + ethnicity + sex, data = final.df1)
+summary(bmi.lm3)
+
+```
+The model using log(bmi) as a response with the age variable as a quadratic and the logged drink max per day variable also as a quadratic with the other explanatory variable of ethnicity and sex does not fit very well at all. The R-squared of this model of 0.17 meaning the model only explains 17% of all variability in the data, therefore the model should definitely not be relied upon for any sort of prediction. However it is better then the model we previous developed with their R-squared of only .16. As you can see from the summary all the variables do have a significant relationship with the median BMI.
+Mathmatical Formula = 
+
+$$log(BMI) = 2.92 + 0.0119 * age_i - 0.0001 * age_i^2 - 0.0353 * logdmd_i + 0.0144 * logdmd_i^2 + 0.107 * ethm_i + 0.13 * ethp_i - 0.0665 * etho_i + 0.048 * sexM_i + e_i$$ where $$e_i ~ iid N(0,o^2)$$ and ethm, ethp, etho = 1, if person has ethnicity fo maori, polynesian or other ethnicity respectively and sexM = 1, if person is male
+
+Q2 
+(A)
+```{r fig.height = 6, fig.width=6}
+data("trapO", package = "VGAMdata")
+plot(trapO$doy,trapO$MinAT, main = "Min ambient temperature vs Day of year", ylab = "Min ambient temperature", xlab = "day of year")
+
+
+```
+
+The plot appears to have fairly constant scatter and their appears to be slight curvatures, meaning their will be a higher power variable. Their appears to be no outliers (obviously you can see their was a very cold day, well below -10 at some stage). The plots show curvature which is what we expected for some place in the world where it is seasonal with Summer and Winters. Their appears to be no skewage in the data.
+
+```{R fig.height = 6, fig.width=6}
+library("splines"); n = 50; set.seed(123); knots = 1:10
+
+mycol <- c("Purple", "green4", "orange", "blue")
+myCex <- 1
+my.cex <- 1
+mylty <- c("solid", "solid", "solid", "dashed")
+mylwd <- 2
+mymgp <- c(1.6, 0.6, 0)
+dd <- seq(0, 250, length.out = 250)
+
+trap.df = na.omit(trapO)
+mysp1 <- lm(MinAT ~ ns(doy, df = 3), data = trap.df)
+plot(trap.df$doy,trap.df$MinAT, main = "Min ambient temperature vs Day of year", ylab = "Min ambient temperature", xlab = "day of year"
+     )
+
+
+lines(dd, predict(mysp1, data.frame(doy = dd)),
+        col = mycol[3], lty = mylty[3], lwd = mylwd)
+
+legend("topright", bty = "n",
+       legend = paste("Degree 3"),
+       col = "orange",cex = 0.6,
+       lty = c("solid"), lwd = 1.1)
+
+
+```
+
+I liked the B-spline with a quadratic spline which has a continuous derivative up to order M - 2 = 1 at the knots- this is aka a parabolic spline, it is also linear beyond the boundaries, it appears to be not undersmoothed or oversmoothed, their appears to be no outliers that affect the ends of the line
+
+```{r fig.height = 6, fig.width=6}
+plot(MaxAT-MinAT ~doy, data = trap.df, main = "Max - Min Ambient Temperature vs Day of the Year", xlab = "Day of year", ylab = "Max - Min ambient temperature", col = "black", cex = 1)
+```
+The above plot shows very large levels of scatter, it appears to be negatively correlated between Day of year and Max-Min temperatures. Their appears to be no outliers but very hard to spot, we may see higher leverage points when plotting a large degree smoother against it, as their appears to be larger scatter in the early days of the years which might create the corners of the smoothers to spike up.
+
+
+```{R fig.height = 6, fig.width=6}
+
+
+
+plot(MaxAT-MinAT ~doy, data = trap.df, main = "Max - Min Ambient Temperature vs Day of the Year", xlab = "Day of year", ylab = "Max - Min ambient temperature", col = "black", cex = 1)
+#doy.spl = with(trap.df, smooth.spline(MaxAT - MinAT, doy))
+
+
+for (Degree in 1:4) {
+  fm <- lm(MaxAT-MinAT ~ poly(doy, Degree), data = trap.df)
+  assign(paste("Ambient temperature", Degree, sep = "."), fm)
+  lines(dd, predict(fm, data.frame(doy = dd)),
+        col = mycol[Degree], lty = mylty[Degree], lwd = mylwd)
+}
+
+
+
+
+legend("topright", bty = "n",
+       legend = paste("Degree", as.character(1:4)),
+       cex = myCex, col = mycol,
+       lty = mylty, lwd = mylwd)
+
+```
+
+I wanted to plot all 4 of the different poly smoothers up to degree of 4. I think after reviewing all the smoothers a poly of degrees 2 appears to be fine, this is a smaller degree then the above smoother using the response variable of Min temperature, therefore fitting a squared polynomial of Day of Year to the max min temperatures might be best. Obviously if you can have a smaller polynomial of 2 instead of 3 or 4 the models is alot less complex
